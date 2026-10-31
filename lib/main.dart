@@ -10,7 +10,7 @@ class Mp3ConverterApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Dustomuet MP3 Converter',
+      title: 'Dustomuet MP3 Downloader',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         brightness: Brightness.dark,
@@ -34,10 +34,16 @@ class _ConverterHomePageState extends State<ConverterHomePage> {
   bool _isLoading = false;
   String _statusMessage = '';
   
-  // Option de nommage par défaut : Artiste - Titre
+  // Options de configuration
+  String _selectedPlatform = 'YouTube';
   String _namingFormat = 'Artiste - Titre';
 
-  void _startDownload() {
+  // Métadonnées simulées
+  bool _metadataLoaded = false;
+  String _trackTitle = '';
+  String _artistName = '';
+
+  void _startProcess() {
     final url = _urlController.text.trim();
     if (url.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -48,24 +54,29 @@ class _ConverterHomePageState extends State<ConverterHomePage> {
 
     setState(() {
       _isLoading = true;
-      _statusMessage = 'Analyse du lien et récupération des tags...';
+      _statusMessage = 'Connexion à $_selectedPlatform...';
+      _metadataLoaded = false;
     });
 
+    // Étape 1 : Analyse de la plateforme et récupération des tags
     Future.delayed(const Duration(seconds: 2), () {
       setState(() {
-        _statusMessage = 'Téléchargement (Format: $_namingFormat)...';
+        _statusMessage = 'Récupération de la pochette & métadonnées...';
+        _trackTitle = 'Titre extrait de $_selectedPlatform';
+        _artistName = 'DUSTOMUET';
+        _metadataLoaded = true;
       });
     });
 
+    // Étape 2 : Enregistrement final selon le format de nommage choisi
     Future.delayed(const Duration(seconds: 4), () {
       setState(() {
         _isLoading = false;
         _statusMessage = '';
-        _urlController.clear();
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Succès ! Enregistré avec le format : $_namingFormat'),
+          content: Text('Téléchargé via $_selectedPlatform ! Format : $_namingFormat'),
           backgroundColor: Colors.green,
         ),
       );
@@ -76,7 +87,7 @@ class _ConverterHomePageState extends State<ConverterHomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Convertisseur MP3 & Tags'),
+        title: const Text('Dustomuet Multi-Downloader'),
         centerTitle: true,
         backgroundColor: const Color(0xFF1DB954),
       ),
@@ -85,18 +96,56 @@ class _ConverterHomePageState extends State<ConverterHomePage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Center(
-              child: Icon(Icons.audiotrack, size: 80, color: Color(0xFF1DB954)),
+            // Pochette d'album dynamique
+            Center(
+              child: Container(
+                width: 130,
+                height: 130,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade800,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xFF1DB954), width: 2),
+                ),
+                child: _metadataLoaded
+                    ? const Icon(Icons.album, size: 70, color: Color(0xFF1DB954))
+                    : const Icon(Icons.music_note, size: 50, color: Colors.grey),
+              ),
             ),
             const SizedBox(height: 20),
+
+            // Choix de la plateforme
+            const Text(
+              'Plateforme source :',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: ['YouTube', 'Spotify', 'Deezer'].map((platform) {
+                bool isSelected = _selectedPlatform == platform;
+                return ChoiceChip(
+                  label: Text(platform),
+                  selected: isSelected,
+                  selectedColor: const Color(0xFF1DB954),
+                  backgroundColor: const Color(0xFF1e1e1e),
+                  labelStyle: TextStyle(color: isSelected ? Colors.white : Colors.grey),
+                  onSelected: (bool selected) {
+                    setState(() {
+                      _selectedPlatform = platform;
+                    });
+                  },
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 20),
+
+            // Champ Lien
             TextField(
               controller: _urlController,
               decoration: InputDecoration(
-                labelText: 'Colle ton lien (Spotify, Deezer, YouTube)',
+                labelText: 'Colle ton lien de $_selectedPlatform...',
                 labelStyle: const TextStyle(color: Colors.grey),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                 focusedBorder: OutlineInputBorder(
                   borderSide: const BorderSide(color: Color(0xFF1DB954), width: 2),
                   borderRadius: BorderRadius.circular(12),
@@ -104,7 +153,28 @@ class _ConverterHomePageState extends State<ConverterHomePage> {
                 prefixIcon: const Icon(Icons.link, color: Color(0xFF1DB954)),
               ),
             ),
-            const SizedBox(height: 25),
+            const SizedBox(height: 20),
+
+            if (_metadataLoaded) ...[
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1e1e1e),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Titre : $_trackTitle', style: const TextStyle(color: Colors.white)),
+                    const SizedBox(height: 5),
+                    Text('Artiste : $_artistName', style: const TextStyle(color: Colors.grey)),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+            ],
+
+            // Choix du format de nommage
             const Text(
               'Format du nom de fichier :',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
@@ -141,30 +211,27 @@ class _ConverterHomePageState extends State<ConverterHomePage> {
               ),
             ),
             const SizedBox(height: 30),
+
+            // Bouton de téléchargement
             SizedBox(
               width: double.infinity,
               height: 55,
               child: ElevatedButton.icon(
-                onPressed: _isLoading ? null : _startDownload,
+                onPressed: _isLoading ? null : _startProcess,
                 icon: _isLoading
                     ? const SizedBox(
                         width: 20,
                         height: 20,
-                        child: CircularProgressIndicator(
-                          color: Colors.white,
-                          strokeWidth: 2,
-                        ),
+                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
                       )
                     : const Icon(Icons.download, color: Colors.white),
                 label: Text(
-                  _isLoading ? _statusMessage : 'Lancer le téléchargement',
+                  _isLoading ? _statusMessage : 'Télécharger la musique',
                   style: const TextStyle(fontSize: 16, color: Colors.white),
                 ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF1DB954),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
               ),
             ),
