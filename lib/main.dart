@@ -47,33 +47,33 @@ class _ConverterHomePageState extends State<ConverterHomePage> {
   String _artistName = 'DUSTOMUET';
   String? _lastDownloadedPath;
 
-  // Demande des permissions de stockage sur Android
-  Future<bool> _requestPermissions() async {
-    if (Platform.isAndroid) {
-      var status = await Permission.storage.request();
-      if (!status.isGranted) {
-        var manageStatus = await Permission.manageExternalStorage.request();
-        return manageStatus.isGranted || status.isGranted;
-      }
-      return status.isGranted;
-    }
-    return true;
+  @override
+  void initState() {
+    super.initState();
+    // Demande la permission de stockage dès l'ouverture de l'application
+    _requestStoragePermissionOnStartup();
   }
 
-  // Vraie fonction de téléchargement HTTP
+  Future<void> _requestStoragePermissionOnStartup() async {
+    if (Platform.isAndroid) {
+      // Demande la permission de stockage standard ou gestion de fichiers
+      var status = await Permission.storage.status;
+      if (!status.isGranted) {
+        await Permission.storage.request();
+      }
+      var manageStatus = await Permission.manageExternalStorage.status;
+      if (!manageStatus.isGranted) {
+        // Optionnel pour les accès globaux sur Android récent
+        await Permission.manageExternalStorage.request();
+      }
+    }
+  }
+
   Future<void> _startRealDownload() async {
     final url = _urlController.text.trim();
     if (url.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Veuillez entrer un lien valide !')),
-      );
-      return;
-    }
-
-    bool hasPermission = await _requestPermissions();
-    if (!hasPermission) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Permission de stockage refusée !')),
       );
       return;
     }
@@ -86,20 +86,15 @@ class _ConverterHomePageState extends State<ConverterHomePage> {
     });
 
     try {
-      // Étape 1 : Simulation/Récupération des tags
       await Future.delayed(const Duration(seconds: 1));
       setState(() {
         _statusMessage = 'Téléchargement du fichier audio...';
         _metadataLoaded = true;
       });
 
-      // Exemple de téléchargement d'un fichier audio de test (ou du lien fourni si direct)
-      // Note: Pour un vrai convertisseur YouTube/Spotify complexe, on utilise généralement une API externe ou un backend, 
-      // mais ici on télécharge le flux direct ou un fichier de démonstration fonctionnel.
       final response = await http.get(Uri.parse('https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3'));
 
       if (response.statusCode == 200) {
-        // Formater le nom selon le choix de l'utilisateur
         String fileName = '';
         if (_namingFormat == 'Artiste - Titre') {
           fileName = '$_artistName - $_trackTitle.mp3';
@@ -111,10 +106,8 @@ class _ConverterHomePageState extends State<ConverterHomePage> {
           fileName = '$_artistName.mp3';
         }
         
-        // Nettoyer les caractères spéciaux du nom de fichier
         fileName = fileName.replaceAll(RegExp(r'[^\w\s\.-]'), '');
 
-        // Enregistrement dans le dossier Téléchargements public ou documents de l'application
         Directory? directory;
         if (Platform.isAndroid) {
           directory = Directory('/storage/emulated/0/Download');
@@ -159,12 +152,10 @@ class _ConverterHomePageState extends State<ConverterHomePage> {
     }
   }
 
-  // Ouvrir le fichier téléchargé
   void _openDownloadedFile() {
     if (_lastDownloadedPath != null) {
       OpenFile.open(_lastDownloadedPath);
     } else {
-      // Ouvre directement le dossier Téléchargements général si aucun chemin précis
       OpenFile.open('/storage/emulated/0/Download');
     }
   }
@@ -294,7 +285,6 @@ class _ConverterHomePageState extends State<ConverterHomePage> {
             ),
             const SizedBox(height: 30),
 
-            // Bouton de téléchargement réel
             SizedBox(
               width: double.infinity,
               height: 55,
@@ -320,7 +310,6 @@ class _ConverterHomePageState extends State<ConverterHomePage> {
             
             const SizedBox(height: 15),
 
-            // Bouton pour ouvrir le dossier des téléchargements
             SizedBox(
               width: double.infinity,
               height: 50,
