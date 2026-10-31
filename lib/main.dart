@@ -50,20 +50,18 @@ class _ConverterHomePageState extends State<ConverterHomePage> {
   @override
   void initState() {
     super.initState();
-    // Demande la permission de stockage dès l'ouverture de l'application
+    // Demande la permission de stockage dès l'ouverture de l'application sur Samsung
     _requestStoragePermissionOnStartup();
   }
 
   Future<void> _requestStoragePermissionOnStartup() async {
     if (Platform.isAndroid) {
-      // Demande la permission de stockage standard ou gestion de fichiers
       var status = await Permission.storage.status;
       if (!status.isGranted) {
         await Permission.storage.request();
       }
       var manageStatus = await Permission.manageExternalStorage.status;
       if (!manageStatus.isGranted) {
-        // Optionnel pour les accès globaux sur Android récent
         await Permission.manageExternalStorage.request();
       }
     }
