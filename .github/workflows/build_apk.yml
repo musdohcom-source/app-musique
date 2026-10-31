@@ -25,10 +25,13 @@ jobs:
         with:
           flutter-version: '3.19.0'
           channel: 'stable'
-          cache: true # Active le cache natif de Flutter pour accélérer
+          cache: true
 
       - name: Install dependencies
         run: flutter pub get
+
+      - name: Fix Android project structure
+        run: flutter create . --platforms=android --org com.example
 
       - name: Build APK
         run: flutter build apk --release
