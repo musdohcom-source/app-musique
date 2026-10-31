@@ -30,8 +30,11 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Fix Android project structure
-        run: flutter create . --platforms=android --org com.example
+      - name: Fix Android Gradle version
+        run: |
+          cd android
+          ./gradlew wrapper --gradle-version=8.5
+        continue-on-error: true
 
       - name: Build APK
         run: flutter build apk --release
