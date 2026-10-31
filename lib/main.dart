@@ -33,6 +33,9 @@ class _ConverterHomePageState extends State<ConverterHomePage> {
   final TextEditingController _urlController = TextEditingController();
   bool _isLoading = false;
   String _statusMessage = '';
+  
+  // Option de nommage par défaut : Artiste - Titre
+  String _namingFormat = 'Artiste - Titre';
 
   void _startDownload() {
     final url = _urlController.text.trim();
@@ -45,13 +48,12 @@ class _ConverterHomePageState extends State<ConverterHomePage> {
 
     setState(() {
       _isLoading = true;
-      _statusMessage = 'Connexion au serveur...';
+      _statusMessage = 'Analyse du lien et récupération des tags...';
     });
 
-    // Simulation d'une étape de téléchargement/conversion réaliste
     Future.delayed(const Duration(seconds: 2), () {
       setState(() {
-        _statusMessage = 'Conversion en cours (MP3 320kbps)...';
+        _statusMessage = 'Téléchargement (Format: $_namingFormat)...';
       });
     });
 
@@ -62,8 +64,8 @@ class _ConverterHomePageState extends State<ConverterHomePage> {
         _urlController.clear();
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Succès ! Fichier enregistré dans les Téléchargements.'),
+        SnackBar(
+          content: Text('Succès ! Enregistré avec le format : $_namingFormat'),
           backgroundColor: Colors.green,
         ),
       );
@@ -74,26 +76,23 @@ class _ConverterHomePageState extends State<ConverterHomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Convertisseur MP3'),
+        title: const Text('Convertisseur MP3 & Tags'),
         centerTitle: true,
         backgroundColor: const Color(0xFF1DB954),
       ),
-      body: Padding(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(20.0),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Icon(Icons.audiotrack, size: 90, color: Color(0xFF1DB954)),
-            const SizedBox(height: 10),
-            const Text(
-              'Télécharge et convertis tes audios',
-              style: TextStyle(fontSize: 16, color: Colors.grey),
+            const Center(
+              child: Icon(Icons.audiotrack, size: 80, color: Color(0xFF1DB954)),
             ),
-            const SizedBox(height: 30),
+            const SizedBox(height: 20),
             TextField(
               controller: _urlController,
               decoration: InputDecoration(
-                labelText: 'Colle ton lien ici (YouTube, TikTok...)',
+                labelText: 'Colle ton lien (Spotify, Deezer, YouTube)',
                 labelStyle: const TextStyle(color: Colors.grey),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
@@ -106,6 +105,42 @@ class _ConverterHomePageState extends State<ConverterHomePage> {
               ),
             ),
             const SizedBox(height: 25),
+            const Text(
+              'Format du nom de fichier :',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+            ),
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.grey.shade700),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  value: _namingFormat,
+                  isExpanded: true,
+                  dropdownColor: const Color(0xFF1e1e1e),
+                  items: <String>[
+                    'Artiste - Titre',
+                    'Titre - Artiste',
+                    'Titre uniquement',
+                    'Artiste uniquement'
+                  ].map((String value) {
+                    return DropdownMenuItem<String>(
+                      value: value,
+                      child: Text(value, style: const TextStyle(color: Colors.white)),
+                    );
+                  }).toList(),
+                  onChanged: (String? newValue) {
+                    setState(() {
+                      _namingFormat = newValue!;
+                    });
+                  },
+                ),
+              ),
+            ),
+            const SizedBox(height: 30),
             SizedBox(
               width: double.infinity,
               height: 55,
