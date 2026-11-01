@@ -38,7 +38,7 @@ jobs:
           flutter create . --platforms=android --project-name=dustmp3 --org com.dustomuet
 
       - name: Build APK
-        run: flutter build apk --release --verbose
+        run: flutter build apk --release
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
