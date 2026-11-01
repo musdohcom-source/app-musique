@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -6,25 +7,38 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:open_file/open_file.dart';
 
 void main() {
-  runApp(const Mp3ConverterApp());
+  runApp(const DustMp3App());
 }
 
-class Mp3ConverterApp extends StatelessWidget {
-  const Mp3ConverterApp({super.key});
+class DustMp3App extends StatelessWidget {
+  const DustMp3App({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'DUSTMP3',
+      title: 'DUSTMP3 - DUSTOMUET',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         brightness: Brightness.dark,
-        primarySwatch: Colors.green,
+        primaryColor: const Color(0xFF1DB954),
         scaffoldBackgroundColor: const Color(0xFF121212),
+        colorScheme: const ColorScheme.dark(
+          primary: Color(0xFF1DB954),
+          secondary: Color(0xFF1ED760),
+          surface: Color(0xFF1E1E1E),
+        ),
       ),
       home: const ConverterHomePage(),
     );
   }
+}
+
+class DownloadItem {
+  final String title;
+  final String path;
+  final DateTime date;
+
+  DownloadItem({required this.title, required this.path, required this.date});
 }
 
 class ConverterHomePage extends StatefulWidget {
@@ -43,9 +57,12 @@ class _ConverterHomePageState extends State<ConverterHomePage> {
   String _namingFormat = 'Artiste - Titre';
 
   bool _metadataLoaded = false;
-  final String _trackTitle = 'Mon Morceau';
-  final String _artistName = 'DUSTOMUET';
+  String _trackTitle = '';
+  String _artistName = 'DUSTOMUET';
   String? _lastDownloadedPath;
+
+  // Liste pour conserver l'historique des téléchargements de la session
+  final List<DownloadItem> _downloadHistory = [];
 
   @override
   void initState() {
@@ -67,8 +84,8 @@ class _ConverterHomePageState extends State<ConverterHomePage> {
   }
 
   Future<void> _startRealDownload() async {
-    final url = _urlController.text.trim();
-    if (url.isEmpty) {
+    final inputUrl = _urlController.text.trim();
+    if (inputUrl.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Veuillez entrer un lien valide !')),
       );
@@ -77,22 +94,49 @@ class _ConverterHomePageState extends State<ConverterHomePage> {
 
     setState(() {
       _isLoading = true;
-      _statusMessage = 'Connexion à $_selectedPlatform...';
+      _statusMessage = 'Analyse du lien via backend...';
       _metadataLoaded = false;
       _lastDownloadedPath = null;
     });
 
     try {
-      await Future.delayed(const Duration(seconds: 1));
+      // 1. Interrogation du service backend de conversion audio
+      final apiUri = Uri.parse('https://api.cobalt.tools/api/json');
+      final responseApi = await http.post(
+        apiUri,
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'url': inputUrl,
+          'downloadMode': 'audio',
+          'audioFormat': 'mp3',
+        }),
+      );
+
+      if (responseApi.statusCode != 200) {
+        throw Exception('Impossible de traiter ce lien ($inputUrl).');
+      }
+
+      final data = jsonDecode(responseApi.body);
+      final String? downloadUrl = data['url'];
+      final String titleFromApi = data['filename'] ?? 'Musique_DUSTMP3';
+
+      if (downloadUrl == null) {
+        throw Exception('Aucun flux audio récupéré.');
+      }
+
       setState(() {
-        _statusMessage = 'Téléchargement du fichier audio...';
+        _statusMessage = 'Téléchargement du fichier MP3...';
+        _trackTitle = titleFromApi.replaceAll('.mp3', '');
         _metadataLoaded = true;
       });
 
-      // Utilisation d'un lien direct testable et sécurisé en HTTPS
-      final response = await http.get(Uri.parse('https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3'));
+      // 2. Téléchargement du binaire MP3
+      final audioResponse = await http.get(Uri.parse(downloadUrl));
 
-      if (response.statusCode == 200) {
+      if (audioResponse.statusCode == 200) {
         String fileName = '';
         if (_namingFormat == 'Artiste - Titre') {
           fileName = '$_artistName - $_trackTitle.mp3';
@@ -106,7 +150,6 @@ class _ConverterHomePageState extends State<ConverterHomePage> {
         
         fileName = fileName.replaceAll(RegExp(r'[^\w\s\.-]'), '');
 
-        // Récupération d'un répertoire accessible sur Android
         Directory? directory;
         if (Platform.isAndroid) {
           directory = Directory('/storage/emulated/0/Download');
@@ -123,23 +166,31 @@ class _ConverterHomePageState extends State<ConverterHomePage> {
 
         final filePath = '${directory!.path}/$fileName';
         final file = File(filePath);
-        await file.writeAsBytes(response.bodyBytes);
+        await file.writeAsBytes(audioResponse.bodyBytes);
 
         setState(() {
           _isLoading = false;
           _statusMessage = '';
           _lastDownloadedPath = filePath;
+          _downloadHistory.insert(
+            0,
+            DownloadItem(
+              title: fileName,
+              path: filePath,
+              date: DateTime.now(),
+            ),
+          );
         });
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Téléchargé avec succès : $fileName'),
-            backgroundColor: Colors.green,
+            content: Text('Succès : $fileName enregistré !'),
+            backgroundColor: const Color(0xFF1DB954),
             duration: const Duration(seconds: 4),
           ),
         );
       } else {
-        throw Exception('Erreur réseau : ${response.statusCode}');
+        throw Exception('Erreur de réseau lors de la récupération du MP3.');
       }
     } catch (e) {
       setState(() {
@@ -148,16 +199,16 @@ class _ConverterHomePageState extends State<ConverterHomePage> {
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Erreur de téléchargement : $e'),
-          backgroundColor: Colors.red,
+          content: Text('Erreur : $e'),
+          backgroundColor: Colors.redAccent,
         ),
       );
     }
   }
 
-  void _openDownloadedFile() {
-    if (_lastDownloadedPath != null && File(_lastDownloadedPath!).existsSync()) {
-      OpenFile.open(_lastDownloadedPath);
+  void _openFile(String path) {
+    if (File(path).existsSync()) {
+      OpenFile.open(path);
     } else {
       OpenFile.open('/storage/emulated/0/Download');
     }
@@ -167,31 +218,42 @@ class _ConverterHomePageState extends State<ConverterHomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('DUSTMP3 Multi-Downloader'),
+        title: const Text(
+          'DUSTMP3',
+          style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.2),
+        ),
         centerTitle: true,
         backgroundColor: const Color(0xFF1DB954),
+        elevation: 4,
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Pochette / Logo principal
             Center(
               child: Container(
-                width: 130,
-                height: 130,
+                width: 120,
+                height: 120,
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade800,
-                  borderRadius: BorderRadius.circular(16),
+                  color: const Color(0xFF1E1E1E),
+                  borderRadius: BorderRadius.circular(20),
                   border: Border.all(color: const Color(0xFF1DB954), width: 2),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF1DB954).withOpacity(0.3),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
                 ),
-                child: _metadataLoaded
-                    ? const Icon(Icons.album, size: 70, color: Color(0xFF1DB954))
-                    : const Icon(Icons.music_note, size: 50, color: Colors.grey),
+                child: const Icon(Icons.music_note, size: 60, color: Color(0xFF1DB954)),
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 25),
 
+            // Sélection de la plateforme
             const Text(
               'Plateforme source :',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
@@ -205,8 +267,11 @@ class _ConverterHomePageState extends State<ConverterHomePage> {
                   label: Text(platform),
                   selected: isSelected,
                   selectedColor: const Color(0xFF1DB954),
-                  backgroundColor: const Color(0xFF1e1e1e),
-                  labelStyle: TextStyle(color: isSelected ? Colors.white : Colors.grey),
+                  backgroundColor: const Color(0xFF1E1E1E),
+                  labelStyle: TextStyle(
+                    color: isSelected ? Colors.white : Colors.grey,
+                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                  ),
                   onSelected: (bool selected) {
                     setState(() {
                       _selectedPlatform = platform;
@@ -217,11 +282,14 @@ class _ConverterHomePageState extends State<ConverterHomePage> {
             ),
             const SizedBox(height: 20),
 
+            // Champ de texte pour le lien
             TextField(
               controller: _urlController,
               decoration: InputDecoration(
-                labelText: 'Colle ton lien de $_selectedPlatform...',
+                labelText: 'Colle ton lien $_selectedPlatform...',
                 labelStyle: const TextStyle(color: Colors.grey),
+                filled: true,
+                fillColor: const Color(0xFF1E1E1E),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                 focusedBorder: OutlineInputBorder(
                   borderSide: const BorderSide(color: Color(0xFF1DB954), width: 2),
@@ -232,25 +300,7 @@ class _ConverterHomePageState extends State<ConverterHomePage> {
             ),
             const SizedBox(height: 20),
 
-            if (_metadataLoaded) ...[
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1e1e1e),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Titre : $_trackTitle', style: const TextStyle(color: Colors.white)),
-                    const SizedBox(height: 5),
-                    Text('Artiste : $_artistName', style: const TextStyle(color: Colors.grey)),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 20),
-            ],
-
+            // Choix du format de nommage
             const Text(
               'Format du nom de fichier :',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
@@ -259,14 +309,15 @@ class _ConverterHomePageState extends State<ConverterHomePage> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12),
               decoration: BoxDecoration(
-                border: Border.all(color: Colors.grey.shade700),
+                color: const Color(0xFF1E1E1E),
+                border: Border.all(color: Colors.grey.shade800),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: DropdownButtonHideUnderline(
                 child: DropdownButton<String>(
                   value: _namingFormat,
                   isExpanded: true,
-                  dropdownColor: const Color(0xFF1e1e1e),
+                  dropdownColor: const Color(0xFF1E1E1E),
                   items: <String>[
                     'Artiste - Titre',
                     'Titre - Artiste',
@@ -286,8 +337,9 @@ class _ConverterHomePageState extends State<ConverterHomePage> {
                 ),
               ),
             ),
-            const SizedBox(height: 30),
+            const SizedBox(height: 25),
 
+            // Bouton de Téléchargement
             SizedBox(
               width: double.infinity,
               height: 55,
@@ -295,32 +347,34 @@ class _ConverterHomePageState extends State<ConverterHomePage> {
                 onPressed: _isLoading ? null : _startRealDownload,
                 icon: _isLoading
                     ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
                       )
-                    : const Icon(Icons.download, color: Colors.white),
+                    : const Icon(Icons.download_rounded, color: Colors.white),
                 label: Text(
-                  _isLoading ? _statusMessage : 'Télécharger la musique',
-                  style: const TextStyle(fontSize: 16, color: Colors.white),
+                  _isLoading ? _statusMessage : 'Convertir & Télécharger',
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
                 ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF1DB954),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  elevation: 5,
                 ),
               ),
             ),
             
             const SizedBox(height: 15),
 
+            // Bouton Ouvrir Téléchargements
             SizedBox(
               width: double.infinity,
-              height: 50,
+              height: 48,
               child: OutlinedButton.icon(
-                onPressed: _openDownloadedFile,
+                onPressed: () => _openFile(_lastDownloadedPath ?? '/storage/emulated/0/Download'),
                 icon: const Icon(Icons.folder_open, color: Color(0xFF1DB954)),
                 label: const Text(
-                  'Ouvrir les Téléchargements',
+                  'Dossier Téléchargements',
                   style: TextStyle(fontSize: 15, color: Colors.white),
                 ),
                 style: OutlinedButton.styleFrom(
@@ -329,6 +383,58 @@ class _ConverterHomePageState extends State<ConverterHomePage> {
                 ),
               ),
             ),
+
+            const SizedBox(height: 30),
+            const Divider(color: Colors.grey),
+            const SizedBox(height: 10),
+
+            // Section Historique
+            const Text(
+              'Historique de cette session :',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+            ),
+            const SizedBox(height: 10),
+
+            _downloadHistory.isEmpty
+                ? const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 20),
+                    child: Center(
+                      child: Text(
+                        'Aucun téléchargement récent.',
+                        style: TextStyle(color: Colors.grey, italic: true),
+                      ),
+                    ),
+                  )
+                : ListView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: _downloadHistory.length,
+                    itemBuilder: (context, index) {
+                      final item = _downloadHistory[index];
+                      return Card(
+                        color: const Color(0xFF1E1E1E),
+                        margin: const EdgeInsets.symmetric(vertical: 5),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        child: ListTile(
+                          leading: const Icon(Icons.audiotrack, color: Color(0xFF1DB954)),
+                          title: Text(
+                            item.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(color: Colors.white, fontSize: 14),
+                          ),
+                          subtitle: Text(
+                            '${item.date.hour}:${item.date.minute.toString().padLeft(2, '0')}',
+                            style: const TextStyle(color: Colors.grey, fontSize: 12),
+                          ),
+                          trailing: IconButton(
+                            icon: const Icon(Icons.play_arrow, color: Color(0xFF1DB954)),
+                            onPressed: () => _openFile(item.path),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
           ],
         ),
       ),
