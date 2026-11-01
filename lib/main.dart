@@ -15,7 +15,7 @@ class Mp3ConverterApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Dustomuet Multi-Downloader',
+      title: 'DUSTMP3',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         brightness: Brightness.dark,
@@ -43,14 +43,13 @@ class _ConverterHomePageState extends State<ConverterHomePage> {
   String _namingFormat = 'Artiste - Titre';
 
   bool _metadataLoaded = false;
-  String _trackTitle = 'Mon Morceau';
-  String _artistName = 'DUSTOMUET';
+  final String _trackTitle = 'Mon Morceau';
+  final String _artistName = 'DUSTOMUET';
   String? _lastDownloadedPath;
 
   @override
   void initState() {
     super.initState();
-    // Demande la permission de stockage dès l'ouverture de l'application sur Samsung
     _requestStoragePermissionOnStartup();
   }
 
@@ -90,6 +89,7 @@ class _ConverterHomePageState extends State<ConverterHomePage> {
         _metadataLoaded = true;
       });
 
+      // Utilisation d'un lien direct testable et sécurisé en HTTPS
       final response = await http.get(Uri.parse('https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3'));
 
       if (response.statusCode == 200) {
@@ -106,6 +106,7 @@ class _ConverterHomePageState extends State<ConverterHomePage> {
         
         fileName = fileName.replaceAll(RegExp(r'[^\w\s\.-]'), '');
 
+        // Récupération d'un répertoire accessible sur Android
         Directory? directory;
         if (Platform.isAndroid) {
           directory = Directory('/storage/emulated/0/Download');
@@ -114,6 +115,10 @@ class _ConverterHomePageState extends State<ConverterHomePage> {
           }
         } else {
           directory = await getApplicationDocumentsDirectory();
+        }
+
+        if (directory != null && !await directory.exists()) {
+          await directory.create(recursive: true);
         }
 
         final filePath = '${directory!.path}/$fileName';
@@ -134,7 +139,7 @@ class _ConverterHomePageState extends State<ConverterHomePage> {
           ),
         );
       } else {
-        throw Exception('Erreur réseau');
+        throw Exception('Erreur réseau : ${response.statusCode}');
       }
     } catch (e) {
       setState(() {
@@ -142,8 +147,8 @@ class _ConverterHomePageState extends State<ConverterHomePage> {
         _statusMessage = '';
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Erreur lors du téléchargement du fichier.'),
+        SnackBar(
+          content: Text('Erreur de téléchargement : $e'),
           backgroundColor: Colors.red,
         ),
       );
@@ -151,7 +156,7 @@ class _ConverterHomePageState extends State<ConverterHomePage> {
   }
 
   void _openDownloadedFile() {
-    if (_lastDownloadedPath != null) {
+    if (_lastDownloadedPath != null && File(_lastDownloadedPath!).existsSync()) {
       OpenFile.open(_lastDownloadedPath);
     } else {
       OpenFile.open('/storage/emulated/0/Download');
@@ -162,7 +167,7 @@ class _ConverterHomePageState extends State<ConverterHomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Dustomuet Multi-Downloader'),
+        title: const Text('DUSTMP3 Multi-Downloader'),
         centerTitle: true,
         backgroundColor: const Color(0xFF1DB954),
       ),
