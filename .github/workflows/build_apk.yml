@@ -32,8 +32,8 @@ jobs:
 
       - name: Regenerate Android files
         run: |
-          rm -rf android
-          flutter create . --platforms=android --org com.dustomuet
+          rm -rf android ios linux macos windows
+          flutter create . --platforms=android --project-name=dustmp3 --org com.dustomuet
 
       - name: Build APK
         run: flutter build apk --release
