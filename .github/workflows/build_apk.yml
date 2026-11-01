@@ -30,13 +30,15 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      - name: Clean project
+        run: flutter clean
+
       - name: Regenerate Android files
         run: |
-          rm -rf android ios linux macos windows
           flutter create . --platforms=android --project-name=dustmp3 --org com.dustomuet
 
       - name: Build APK
-        run: flutter build apk --release
+        run: flutter build apk --release --verbose
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
