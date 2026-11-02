@@ -401,7 +401,7 @@ class _ConverterHomePageState extends State<ConverterHomePage> {
                     child: Center(
                       child: Text(
                         'Aucun téléchargement récent.',
-                        style: TextStyle(color: Colors.grey, italic: true),
+                        style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic),
                       ),
                     ),
                   )
