@@ -33,9 +33,15 @@ jobs:
       - name: Clean project
         run: flutter clean
 
-      - name: Regenerate Android files
+      - name: Regenerate Android files and add Internet permission
         run: |
           flutter create . --platforms=android --project-name=dustmp3 --org com.dustomuet
+          
+          # Injection automatique de la permission Internet dans AndroidManifest.xml
+          MANIFEST="android/app/src/main/AndroidManifest.xml"
+          if [ -f "$MANIFEST" ]; then
+            sed -i '/<application/i \    <uses-permission android:name="android.permission.INTERNET" />' "$MANIFEST"
+          fi
 
       - name: Build APK
         run: flutter build apk --release
